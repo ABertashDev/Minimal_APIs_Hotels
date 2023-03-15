@@ -1,2 +1,2 @@
-# Minimal_APIs_Hotels
+# Minimal APIs Hotels
 Minimal APIs small project for training
