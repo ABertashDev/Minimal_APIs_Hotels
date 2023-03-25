@@ -1,6 +1,4 @@
 
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
-
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
@@ -89,6 +87,12 @@ app.MapGet("hotels/search/name/{query}", async (string query, IHotelRepository r
     .Produces(StatusCodes.Status404NotFound)
     .WithName("SearchHotels")
     .WithTags("Getters")
+    .ExcludeFromDescription();
+
+app.MapGet("hotels/search/location/{coordinate}", async (Coordinate coordinate, IHotelRepository repository) =>
+    await repository.GetHotelsAsync(coordinate) is IEnumerable<Hotel> hotels
+        ? Results.Ok(hotels)
+        : Results.NotFound(Array.Empty<Hotel>()))
     .ExcludeFromDescription();
 
 app.UseHttpsRedirection();
