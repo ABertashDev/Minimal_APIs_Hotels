@@ -1,87 +1,96 @@
 
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
+
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddEndpointsApiExplorer();
+
+builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<HotelDb>(options =>
 {
     options.UseSqlite(builder.Configuration.GetConnectionString("Sqlite"));
 });
 
+builder.Services.AddScoped<IHotelRepository, HotelRepository>();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
+    app.UseSwagger();
+    app.UseSwaggerUI();
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<HotelDb>();
     db.Database.EnsureCreated();
 }
 
 
-app.MapGet("/hotels", async (HotelDb db) => await db.Hotels.ToListAsync());
+app.MapGet("/hotels", async (IHotelRepository repository) => 
+    await repository.GetHotelsAsync())
+    .Produces<List<Hotel>>(StatusCodes.Status200OK)
+    .WithName("GetAllHotels")
+    .WithTags("Getters");
 
-app.MapGet("/hotels/{id}", async (int id, HotelDb db) =>
-    await db.Hotels.FirstOrDefaultAsync(h => h.Id == id) is Hotel hotel
+app.MapGet("/hotels/{id}", async (int id, IHotelRepository repository) =>
+    await repository.GetHotelAsync(id) is Hotel hotel
     ? Results.Ok(hotel)
-    : Results.NotFound());
+    : Results.NotFound())
+        .Produces<Hotel>(StatusCodes.Status200OK)
+        .WithName("GetHotel")
+        .WithTags("Getters"); 
 
-app.MapPost("/hotels", async ([FromBody] Hotel hotel, HotelDb db) =>
+app.MapPost("/hotels", async ([FromBody] Hotel hotel, IHotelRepository repository) =>
     {
-        db.Hotels.Add(hotel);
-        
-        await db.SaveChangesAsync();
+        await repository.InsertHotelAsync(hotel);
+
+        await repository.SaveAsync();
        
         return Results.Created($"/hotels/{hotel.Id}", hotel);
 
-    });
+    })
+    .Accepts<Hotel>("application/json")
+    .Produces<Hotel>(StatusCodes.Status201Created)
+    .WithName("CreateHotel")
+    .WithTags("Creators");
 
-app.MapPut("/hotels", async ([FromBody] Hotel hotel, HotelDb db) =>
-{
+app.MapPut("/hotels", async ([FromBody] Hotel hotel, IHotelRepository repository) =>
+    {
+
+        await repository.UpdateHotelAsync(hotel);
+
+        await repository.SaveAsync();
+
+        return Results.NoContent();
+
+    })
+    .Accepts<Hotel>("application/json")
+    .WithName("UpdateHotel")
+    .WithTags("Updaters");
+
+app.MapDelete("/hotels/{id}", async (int id, IHotelRepository repository) =>
+    {
+
+        await repository.DeleteHotelAsync(id);
+
+        await repository.SaveAsync();
+
+        return Results.NoContent();
     
-    var hotelFromDb = await db.Hotels.FindAsync(new object[] { hotel.Id });
-    
-    if (hotelFromDb == null) return Results.NotFound();
-    
-    hotelFromDb.Latitude = hotel.Latitude;
-    hotelFromDb.Longitude = hotel.Longitude;
-    hotelFromDb.Name = hotel.Name;
-    
-    await db.SaveChangesAsync();
-   
-    return Results.NoContent();
+    })
+.WithName("DeleteHotel")
+.WithTags("Deleters");
 
-});
-
-app.MapDelete("/hotels/{id}", async (int id, HotelDb db) =>
-{
-    
-    var hotelFromDb = await db.Hotels.FindAsync(new object[] { id });
-
-    if (hotelFromDb == null) return Results.NotFound();
-
-    db.Hotels.Remove(hotelFromDb);
-
-    await db.SaveChangesAsync();
-
-    return Results.NoContent();
-    
-});
-
+app.MapGet("hotels/search/name/{query}", async (string query, IHotelRepository repository) =>
+    await repository.GetHotelsAsync(query) is IEnumerable<Hotel> hotels
+        ? Results.Ok(hotels)
+        : Results.NotFound(Array.Empty<Hotel>()))
+    .Produces<List<Hotel>>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status404NotFound)
+    .WithName("SearchHotels")
+    .WithTags("Getters")
+    .ExcludeFromDescription();
 
 app.UseHttpsRedirection();
 
 app.Run();
-
-
-public class HotelDb : DbContext
-{
-    public HotelDb(DbContextOptions<HotelDb> options) : base(options) { }
-    public DbSet<Hotel> Hotels => Set<Hotel>();
-}
-
-
-public class Hotel
-{
-    public int Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public double Latitude { get; set; }
-    public double Longitude { get; set; }
-}
