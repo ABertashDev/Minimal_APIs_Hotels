@@ -1,5 +1,5 @@
 ﻿
-public class AuthApi
+public class AuthApi : IApi
 {
 
     public void Register(WebApplication app)

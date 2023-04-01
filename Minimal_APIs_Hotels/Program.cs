@@ -8,8 +8,12 @@ var app = builder.Build();
 
 Configure(app);
 
-new AuthApi().Register(app);
-new HotelApi().Register(app);
+var apis = app.Services.GetServices<IApi>();
+foreach (var api in apis)
+{
+    if (api is null) throw new InvalidProgramException("Api not found");
+    api.Register(app);
+}
 
 app.Run();
 
@@ -48,6 +52,9 @@ void RegisterServices(IServiceCollection services)
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
             };
         });
+
+    services.AddTransient<IApi, HotelApi>();
+    services.AddTransient<IApi, AuthApi>();
 
 }
 

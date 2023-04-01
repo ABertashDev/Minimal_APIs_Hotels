@@ -1,5 +1,5 @@
 ﻿
-public class HotelApi
+public class HotelApi : IApi
 {
 
     public void Register(WebApplication app)
